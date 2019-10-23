@@ -1,6 +1,101 @@
 //22nd Jun 2017. GST correction
 //13/08/2017 GST correction
 //20/08/2017 GST in expences
+//28/09/2017
+//02/10/2017 HSN rates
+//16/10/2017 gst_location
+//22/10/2017 gst returns modifications, GST in expence creditor, rate in all sort of expences
+//22/10/2019 In details table added a column placeOfSupply nullable for Casio purpose
+
+if not exists(select column_name from syscolumn key join systable where 
+		table_name =  'bill_memo' and column_name = 'place_of_supply') then
+		alter table bill_memo add place_of_supply varchar(30) null
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'cash_payment' and column_name = 'gst_rate') then
+    alter table cash_payment add gst_rate decimal(5,2) not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'cheque_payment' and column_name = 'gst_rate') then
+    alter table cheque_payment add gst_rate decimal(5,2) not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'expence' and column_name = 'gst_rate') then
+    alter table expence add gst_rate decimal(5,2) not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'expence' and column_name = 'hsn') then
+    alter table expence add hsn varchar(8) null
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'expence' and column_name = 'party_ref_no') then
+    alter table expence add party_ref_no varchar(30) null
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'expence' and column_name = 'gstin') then
+    alter table expence add gstin varchar(30) null
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'expence' and column_name = 'cgst') then
+    alter table expence add cgst T_money not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'expence' and column_name = 'sgst') then
+    alter table expence add sgst T_money not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'expence' and column_name = 'igst') then
+    alter table expence add igst T_money not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+    table_name =  'bill_memo' and column_name = 'gst_location') then
+    alter table bill_memo add gst_location smallint not null default 19
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+		table_name =  'hsncodes' and column_name = 'gst_rate') then
+		alter table hsncodes add gst_rate decimal(5,2) not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+		table_name =  'billmemo' and column_name = 'sgst') then
+		alter table billmemo add sgst T_money not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+		table_name =  'billmemo' and column_name = 'cgst') then
+		alter table billmemo add cgst T_money not null default 0
+end if
+go
+
+if not exists(select column_name from syscolumn key join systable where 
+		table_name =  'billmemo' and column_name = 'igst') then
+		alter table billmemo add igst T_money not null default 0
+end if
+go
 
 if not exists(select column_name from syscolumn key join systable where 
     table_name =  'cash_payment' and column_name = 'hsn') then
@@ -231,10 +326,86 @@ if not exists(select table_name from systable where table_name = 'hsnCodes') the
 end if
 go
 
+ALTER PROCEDURE "DBA"."sp_insert_bill_memo_cust_pb"( out @bill_memo_id unsigned integer,out @cust_id unsigned integer,
+in @ref_no char(30),in @date date,in @form char(1),in @total_amt T_money,in @sale_tax_sale_id unsigned integer,in @acc_id unsigned integer,
+in @descr varchar(200),in @challan_no char(10),in @discount T_money,in @credit_limit smallint,in @tax T_money,in @other_charges T_money,
+in @type char(1),in @surcharge T_money,in @bill_memo char(1),in @addr1 varchar(70),in @addr2 varchar(60),in @name varchar(55),
+in @phone varchar(30),in @pin varchar(10),in @pos_id integer,in @email varchar(30),in @sgst decimal(12,2),
+in @cgst decimal(12,2),in @vat decimal(12,2),in @tot decimal(12,2),in @roundoff decimal(12,2),in @igst decimal(12,2),in @sale_text varchar(60),
+in @mobile varchar(40),in @dob date,in @dom date, in @gstin varchar(30) default null, in @gst_location smallint default 0, in @place_of_supply varchar(30) default null) 
+begin
+  declare @rowcount integer;
+  declare @error integer;
+  --insert into customer table
+  if @name is not null and trim(@name) <> '' then
+    insert into customer( name,addr1,addr2,phone,pin,acc_id,email,mobile,dob,dom ) values( @name,@addr1,
+      @addr2,@phone,@pin,@acc_id,@email,@mobile,@dob,@dom ) ;
+    select @@identity,@@error into @cust_id,@error from dummy;
+    if @@error <> 0 then
+      raiserror 17079,'error';
+      return
+    end if end if;
+  if @pos_id = 0 then set @pos_id = null
+  end if; -- insert into bill_memo table
+  insert into bill_memo( ref_no,"date",form,total_amt,sale_tax_sale_id,
+    acc_id,descr,challan_no,discount,credit_limit,tax,other_charges,type,
+    surcharge,bill_memo,cust_id,inv,pos_id,sgst,tot,cgst,vat,roundoff,igst,sale_text, gstin, gst_location, place_of_supply ) values( @ref_no,@date,@form,@total_amt,
+    @sale_tax_sale_id,@acc_id,@descr,@challan_no,@discount,@credit_limit,@tax,
+    @other_charges,@type,@surcharge,@bill_memo,@cust_id,'N',@pos_id,@sgst,@tot,@cgst,@vat,@roundoff,@igst,@sale_text,@gstin, @gst_location, @place_of_supply ) ;
+  select @@rowcount,@@identity,@@error into @rowcount,@bill_memo_id,@error
+    from dummy;
+  if @@rowcount = 0 or @@error <> 0 then raiserror 17080
+  end if
+end
+go
+
+ALTER PROCEDURE "DBA"."sp_update_bill_memo_cust_pb"( in @bill_memo_id unsigned integer,in @cust_id unsigned integer,in @ref_no char(30),
+in @date date,in @form char(1),in @total_amt T_money,in @sale_tax_sale_id unsigned integer,in @acc_id unsigned integer,in @descr varchar(200),
+in @challan_no char(10),in @discount T_money,in @credit_limit smallint,in @tax T_money,in @other_charges T_money,in @type char(1),
+in @surcharge T_money,in @bill_memo char(1),in @addr1 varchar(70),in @addr2 varchar(60),in @name varchar(55),in @phone varchar(30),
+in @pin varchar(10),in @pos_id unsigned integer,in @sgst T_money,in @cgst T_money,in @vat T_money,in @tot T_money,in @roundoff T_money,
+in @igst T_money,in @sale_text varchar(60),in @mobile varchar(40),in @dob date,in @dom date, in @gstin varchar(30) default null, in @gst_location smallint default 0, in @place_of_supply varchar(30) default null ) 
+begin
+  declare @rowcount integer;
+  declare @error integer;
+  --declare @identity unsigned integer
+  --update customer table
+  call func_checkauditlockdate(@sale_tax_sale_id,@acc_id,@date);
+  if(@@error <> 0) then return end if;
+  if @cust_id is null then
+    if @name is not null then --/add the customer
+      insert into customer( name,addr1,addr2,pin,phone,acc_id,mobile,dob,dom ) 
+        values( @name,@addr1,@addr2,@pin,@phone,@acc_id,@mobile,@dob,@dom ) ;
+      set @cust_id = @@identity
+    end if
+  else update customer set name = @name,addr1 = @addr1,addr2 = @addr2,pin = @pin,
+      phone = @phone,mobile = @mobile where cust_id = @cust_id;
+    if @@error <> 0 then raiserror 99999 'Update error in customer table';
+      return
+    end if end if; --update bill_memo_table
+  if @pos_id = 0 then set @pos_id = null
+  end if;
+  update bill_memo
+    set ref_no = @ref_no,"date" = @date,form = @form,total_amt = @total_amt,
+    sale_tax_sale_id = @sale_tax_sale_id,acc_id = @acc_id,descr = @descr,
+    challan_no = @challan_no,discount = @discount,credit_limit = @credit_limit,
+    tax = @tax,other_charges = @other_charges,type = @type,surcharge = @surcharge,
+    bill_memo = @bill_memo,cust_id = @cust_id,pos_id = @pos_id,sgst = @sgst,cgst = @cgst,
+    vat = @vat,roundoff = @roundoff,tot = @tot,igst = @igst,sale_text = @sale_text, gstin = @gstin, 
+    gst_location = @gst_location ,
+    place_of_supply = @place_of_supply
+    where bill_memo_id = @bill_memo_id;
+  if @@error <> 0 then
+    raiserror 17102;
+    return
+  end if
+end
+go
+
 ALTER PROCEDURE "DBA"."sp_insert_cheque_payment_pb"( inout @cheq_id unsigned integer,in @cheq_no char(20),in @cheq_date date,in @cheq_amt T_money,
 inout @ref_no char(20),in @remarks varchar(200),in @pay_to char(15),in @pay_from char(15),in @clear_date date default null,
 in @through varchar(90) default null, in @party_ref_no varchar(30) default null, in @gstin varchar(30) default null, 
-in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null  ) 
+in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null, in @gst_rate decimal(5,2) default 0  ) 
 begin
   declare @acc_id_bank unsigned integer;
   declare @acc_id unsigned integer;
@@ -250,8 +421,8 @@ begin
     return
   end if;
   insert into cheque_payment( cheq_no,cheq_date,acc_id,cheq_amt,
-    acc_id_bank,ref_no,remarks,through, party_ref_no,hsn,gstin,cgst,sgst,igst ) values( @cheq_no,@cheq_date,@acc_id,
-    @cheq_amt,@acc_id_bank,@ref_no,@remarks,@through, @party_ref_no, @hsn, @gstin, @cgst, @sgst, @igst ) ;
+    acc_id_bank,ref_no,remarks,through, party_ref_no,hsn,gstin,cgst,sgst,igst, gst_rate ) values( @cheq_no,@cheq_date,@acc_id,
+    @cheq_amt,@acc_id_bank,@ref_no,@remarks,@through, @party_ref_no, @hsn, @gstin, @cgst, @sgst, @igst ,@gst_rate) ;
   select @@identity,@@error into @cheq_id,@error;
   if @error <> 0 then
     raiserror 17091;
@@ -267,7 +438,7 @@ go
 ALTER PROCEDURE "DBA"."sp_update_cheque_payment_pb"( @cheq_id unsigned integer,@cheq_no char(20),@cheq_date date,
 @cheq_amt T_money,@ref_no char(20),@remarks varchar(200),@pay_from char(15),@pay_to char(15),@through varchar(90)= null
 , in @party_ref_no varchar(30) default null, in @gstin varchar(30) default null, 
-in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null ) 
+in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null, in @gst_rate decimal(5,2) default 0 ) 
 as
 begin
   declare @acc_id_bank unsigned integer
@@ -299,7 +470,8 @@ begin
     hsn = @hsn,
     cgst = @cgst,
     sgst = @sgst,
-    igst = @igst
+    igst = @igst,
+    gst_rate = @gst_rate
     where cheq_id = @cheq_id
 end
 go
@@ -308,7 +480,7 @@ go
 ALTER PROCEDURE "DBA"."sp_insert_cash_payment_pb"( inout @cp_id unsigned integer,in @cp_date date,in @cp_amt T_money,inout @ref_no char(20),
 in @remarks varchar(200),in @pay_to char(15),in @pay_from char(15),in @through varchar(90) default null, 
 in @party_ref_no varchar(30) default null, in @gstin varchar(30) default null, 
-in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null  ) 
+in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null, @gst_rate decimal(5,2) default 0  ) 
 begin
   declare @cp_acc_id_cash unsigned integer;
   declare @cp_acc_id unsigned integer;
@@ -324,8 +496,8 @@ begin
     return
   end if;
   insert into cash_payment( cp_date,cp_acc_id,cp_amt,
-    cp_acc_id_cash,ref_no,remarks,through, party_ref_no,gstin, cgst, sgst,igst,hsn ) values( @cp_date,@cp_acc_id,
-    @cp_amt,@cp_acc_id_cash,@ref_no,@remarks,@through, @party_ref_no, @gstin, @cgst, @sgst, @igst,@hsn ) ;
+    cp_acc_id_cash,ref_no,remarks,through, party_ref_no,gstin, cgst, sgst,igst,hsn,gst_rate ) values( @cp_date,@cp_acc_id,
+    @cp_amt,@cp_acc_id_cash,@ref_no,@remarks,@through, @party_ref_no, @gstin, @cgst, @sgst, @igst,@hsn,@gst_rate ) ;
   select @@identity,@@error into @cp_id,@error;
   if @error <> 0 then
     raiserror 17089;
@@ -338,7 +510,7 @@ go
 ALTER PROCEDURE "DBA"."sp_update_cash_payment_pb"( in @cp_id unsigned integer,in @cp_date date,in @cp_amt T_money,in @ref_no char(20),
 in @remarks varchar(200),in @pay_to char(15),in @pay_from char(15),in @through varchar(90)
 ,in @party_ref_no varchar(30) default null, in @gstin varchar(30) default null
-,in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null ) 
+,in @cgst t_money default 0, in @sgst t_money default 0, in @igst t_money default 0, in @hsn varchar(8) default null, @gst_rate decimal(5,2) default 0 ) 
 on exception resume
 begin
   declare @cp_acc_id_cash unsigned integer;
@@ -366,7 +538,8 @@ begin
     hsn = @hsn,
     cgst = @cgst,
     sgst = @sgst,
-    igst = @igst
+    igst = @igst,
+    gst_rate = @gst_rate
     where cp_id = @cp_id
 end
 go
@@ -460,7 +633,7 @@ in @descr varchar(200),in @challan_no char(10),in @discount T_money,in @credit_l
 in @type char(1),in @surcharge T_money,in @bill_memo char(1),in @addr1 varchar(70),in @addr2 varchar(60),in @name varchar(55),
 in @phone varchar(30),in @pin varchar(10),in @pos_id integer,in @email varchar(30),in @sgst decimal(12,2),
 in @cgst decimal(12,2),in @vat decimal(12,2),in @tot decimal(12,2),in @roundoff decimal(12,2),in @igst decimal(12,2),in @sale_text varchar(60),
-in @mobile varchar(40),in @dob date,in @dom date, in @gstin varchar(30) default null ) 
+in @mobile varchar(40),in @dob date,in @dom date, in @gstin varchar(30) default null, in @gst_location smallint default 0) 
 begin
   declare @rowcount integer;
   declare @error integer;
@@ -477,9 +650,9 @@ begin
   end if; -- insert into bill_memo table
   insert into bill_memo( ref_no,"date",form,total_amt,sale_tax_sale_id,
     acc_id,descr,challan_no,discount,credit_limit,tax,other_charges,type,
-    surcharge,bill_memo,cust_id,inv,pos_id,sgst,tot,cgst,vat,roundoff,igst,sale_text, gstin ) values( @ref_no,@date,@form,@total_amt,
+    surcharge,bill_memo,cust_id,inv,pos_id,sgst,tot,cgst,vat,roundoff,igst,sale_text, gstin, gst_location ) values( @ref_no,@date,@form,@total_amt,
     @sale_tax_sale_id,@acc_id,@descr,@challan_no,@discount,@credit_limit,@tax,
-    @other_charges,@type,@surcharge,@bill_memo,@cust_id,'N',@pos_id,@sgst,@tot,@cgst,@vat,@roundoff,@igst,@sale_text,@gstin ) ;
+    @other_charges,@type,@surcharge,@bill_memo,@cust_id,'N',@pos_id,@sgst,@tot,@cgst,@vat,@roundoff,@igst,@sale_text,@gstin, @gst_location ) ;
   select @@rowcount,@@identity,@@error into @rowcount,@bill_memo_id,@error
     from dummy;
   if @@rowcount = 0 or @@error <> 0 then raiserror 17080
@@ -492,7 +665,7 @@ in @date date,in @form char(1),in @total_amt T_money,in @sale_tax_sale_id unsign
 in @challan_no char(10),in @discount T_money,in @credit_limit smallint,in @tax T_money,in @other_charges T_money,in @type char(1),
 in @surcharge T_money,in @bill_memo char(1),in @addr1 varchar(70),in @addr2 varchar(60),in @name varchar(55),in @phone varchar(30),
 in @pin varchar(10),in @pos_id unsigned integer,in @sgst T_money,in @cgst T_money,in @vat T_money,in @tot T_money,in @roundoff T_money,
-in @igst T_money,in @sale_text varchar(60),in @mobile varchar(40),in @dob date,in @dom date, in @gstin varchar(30) default null ) 
+in @igst T_money,in @sale_text varchar(60),in @mobile varchar(40),in @dob date,in @dom date, in @gstin varchar(30) default null, in @gst_location smallint default 0 ) 
 begin
   declare @rowcount integer;
   declare @error integer;
@@ -519,7 +692,7 @@ begin
     challan_no = @challan_no,discount = @discount,credit_limit = @credit_limit,
     tax = @tax,other_charges = @other_charges,type = @type,surcharge = @surcharge,
     bill_memo = @bill_memo,cust_id = @cust_id,pos_id = @pos_id,sgst = @sgst,cgst = @cgst,
-    vat = @vat,roundoff = @roundoff,tot = @tot,igst = @igst,sale_text = @sale_text, gstin = @gstin where bill_memo_id = @bill_memo_id;
+    vat = @vat,roundoff = @roundoff,tot = @tot,igst = @igst,sale_text = @sale_text, gstin = @gstin, gst_location = @gst_location where bill_memo_id = @bill_memo_id;
   if @@error <> 0 then
     raiserror 17102;
     return
